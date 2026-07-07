@@ -1,0 +1,22 @@
+name: Build Alt Manager
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: gradle:9-jdk21
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Compilar el mod
+        run: gradle build --no-daemon
+
+      - name: Subir el .jar resultante
+        uses: actions/upload-artifact@v4
+        with:
+          name: altmanager-jar
+          path: build/libs/*.jar
