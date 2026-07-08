@@ -35,6 +35,9 @@ public class AltManagerScreen extends Screen {
 	/** Posición Y de la fila del perfil seleccionado, para pintar el resaltado detrás de los botones. -1 = ninguno. */
 	private int selectedRowY = -1;
 
+	/** Cuánto se desplazó la lista hacia abajo (en píxeles), para poder scrollear cuando hay muchos perfiles. */
+	private int scrollOffset = 0;
+
 	public AltManagerScreen(Screen parent) {
 		super(Component.literal("Alt Manager"));
 		this.parent = parent;
@@ -109,11 +112,41 @@ public class AltManagerScreen extends Screen {
 		rebuildList();
 	}
 
+	/** Límite inferior del área visible de la lista (deja lugar para el botón "Volver"). */
+	private int viewportBottom() {
+		return this.height - 40;
+	}
+
+	/** Cuánto se puede scrollear como máximo, según cuántos perfiles hay. */
+	private int maxScroll() {
+		int visibleHeight = viewportBottom() - LIST_TOP;
+		int totalHeight = ProfileManager.get().getProfiles().size() * ROW_HEIGHT;
+		return Math.max(0, totalHeight - visibleHeight);
+	}
+
+	@Override
+	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		this.scrollOffset -= (int) (scrollY * ROW_HEIGHT);
+		int max = maxScroll();
+		if (this.scrollOffset < 0) {
+			this.scrollOffset = 0;
+		} else if (this.scrollOffset > max) {
+			this.scrollOffset = max;
+		}
+		rebuildList();
+		return true;
+	}
+
 	/**
 	 * Reconstruye los widgets de la lista de perfiles.
-	 * Se llama cada vez que la lista cambia (añadir, editar, usar, eliminar).
+	 * Se llama cada vez que la lista cambia (añadir, editar, usar, eliminar) o se scrollea.
 	 */
 	private void rebuildList() {
+		int max = maxScroll();
+		if (this.scrollOffset > max) {
+			this.scrollOffset = max;
+		}
+
 		this.clearWidgets();
 		this.addRenderableWidget(this.nameField);
 		this.addRenderableWidget(this.confirmButton);
@@ -130,44 +163,48 @@ public class AltManagerScreen extends Screen {
 		String selectedId = ProfileManager.get().getSelectedProfileId();
 
 		int centerX = this.width / 2;
-		int y = LIST_TOP;
+		int y = LIST_TOP - this.scrollOffset;
 		this.selectedRowY = -1;
+		int viewportBottom = viewportBottom();
 
 		for (Profile profile : profiles) {
+			boolean rowVisible = (y + ROW_HEIGHT) > LIST_TOP && y < viewportBottom;
 			boolean isSelected = profile.getId().equals(selectedId);
-			if (isSelected) {
+			if (isSelected && rowVisible) {
 				this.selectedRowY = y;
 			}
 
-			Component nameComponent = isSelected
-					? Component.literal("★ " + profile.getName())
-							.withStyle(ChatFormatting.BOLD)
-							.withStyle(style -> style.withColor(TextColor.fromRgb(0xFFD700))) // dorado
-					: Component.literal(profile.getName());
+			if (rowVisible) {
+				Component nameComponent = isSelected
+						? Component.literal("★ " + profile.getName())
+								.withStyle(ChatFormatting.BOLD)
+								.withStyle(style -> style.withColor(TextColor.fromRgb(0xFFD700))) // dorado
+						: Component.literal(profile.getName());
 
-			this.addRenderableWidget(Button.builder(nameComponent, button -> onUse(profile))
-					.bounds(centerX - 150, y, 110, 20)
-					.build());
+				this.addRenderableWidget(Button.builder(nameComponent, button -> onUse(profile))
+						.bounds(centerX - 150, y, 110, 20)
+						.build());
 
-			this.addRenderableWidget(Button.builder(Component.literal("Usar"), button -> onUse(profile))
-					.bounds(centerX - 35, y, 60, 20)
-					.build());
+				this.addRenderableWidget(Button.builder(Component.literal("Usar"), button -> onUse(profile))
+						.bounds(centerX - 35, y, 60, 20)
+						.build());
 
-			this.addRenderableWidget(Button.builder(Component.literal("Editar"), button -> onEdit(profile))
-					.bounds(centerX + 30, y, 60, 20)
-					.build());
+				this.addRenderableWidget(Button.builder(Component.literal("Editar"), button -> onEdit(profile))
+						.bounds(centerX + 30, y, 60, 20)
+						.build());
 
-			this.addRenderableWidget(Button.builder(Component.literal("Eliminar"), button -> {
-						ProfileManager.get().removeProfile(profile.getId());
-						if (profile.getId().equals(this.editingProfileId)) {
-							this.editingProfileId = null;
-							this.nameField.setValue("");
-							this.confirmButton.setMessage(Component.literal("Añadir"));
-						}
-						rebuildList();
-					})
-					.bounds(centerX + 95, y, 75, 20)
-					.build());
+				this.addRenderableWidget(Button.builder(Component.literal("Eliminar"), button -> {
+							ProfileManager.get().removeProfile(profile.getId());
+							if (profile.getId().equals(this.editingProfileId)) {
+								this.editingProfileId = null;
+								this.nameField.setValue("");
+								this.confirmButton.setMessage(Component.literal("Añadir"));
+							}
+							rebuildList();
+						})
+						.bounds(centerX + 95, y, 75, 20)
+						.build());
+			}
 
 			y += ROW_HEIGHT;
 		}
@@ -212,6 +249,22 @@ public class AltManagerScreen extends Screen {
 			context.drawCenteredString(this.font,
 					Component.literal("No hay perfiles guardados todavía."),
 					this.width / 2, LIST_TOP + 10, 0xAAAAAA);
+		}
+
+		// Barra de scroll simple a la derecha de la lista, solo si hace falta.
+		int max = maxScroll();
+		if (max > 0) {
+			int centerX = this.width / 2;
+			int trackX = centerX + 178;
+			int trackTop = LIST_TOP;
+			int trackBottom = viewportBottom();
+			context.fill(trackX, trackTop, trackX + 4, trackBottom, 0x33FFFFFF);
+
+			int trackHeight = trackBottom - trackTop;
+			int totalHeight = profiles.size() * ROW_HEIGHT;
+			int thumbHeight = Math.max(12, trackHeight * trackHeight / totalHeight);
+			int thumbY = trackTop + (int) ((trackHeight - thumbHeight) * (this.scrollOffset / (float) max));
+			context.fill(trackX, thumbY, trackX + 4, thumbY + thumbHeight, 0xFF2ECC71);
 		}
 	}
 
