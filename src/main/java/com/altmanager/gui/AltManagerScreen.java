@@ -22,11 +22,12 @@ import java.util.List;
 public class AltManagerScreen extends Screen {
 
 	private static final int ROW_HEIGHT = 24;
-	private static final int LIST_TOP = 65;
+	private static final int LIST_TOP = 90;
 
 	private final Screen parent;
 	private EditBox nameField;
 	private Button confirmButton;
+	private Button importButton;
 
 	/** Si no es null, estamos editando este perfil en vez de añadir uno nuevo. */
 	private String editingProfileId = null;
@@ -45,13 +46,18 @@ public class AltManagerScreen extends Screen {
 
 		int centerX = this.width / 2;
 
-		this.nameField = new EditBox(this.font, centerX - 150, 35, 200, 20,
+		this.nameField = new EditBox(this.font, centerX - 150, 35, 220, 20,
 				Component.literal("Nombre del perfil"));
-		this.nameField.setMaxLength(32);
+		this.nameField.setMaxLength(400); // suficiente para pegar una lista larga separada por comas
 
 		this.confirmButton = Button.builder(Component.literal("Añadir"), button -> onConfirm())
-				.bounds(centerX + 55, 35, 95, 20)
+				.bounds(centerX + 75, 35, 75, 20)
 				.build();
+
+		Button importButtonInstance = Button.builder(Component.literal("Importar lista (separada por comas)"), button -> onImportList())
+				.bounds(centerX - 150, 58, 300, 20)
+				.build();
+		this.importButton = importButtonInstance;
 
 		rebuildList();
 	}
@@ -66,6 +72,27 @@ public class AltManagerScreen extends Screen {
 			ProfileManager.get().addProfile(name);
 		}
 		this.nameField.setValue("");
+		rebuildList();
+	}
+
+	/**
+	 * Toma el texto del campo (nombres separados por coma, punto y coma, o salto de línea)
+	 * y crea un perfil por cada nombre no vacío.
+	 */
+	private void onImportList() {
+		String raw = this.nameField.getValue();
+		String[] parts = raw.split("[,;\\n]+");
+		int added = 0;
+		for (String part : parts) {
+			String name = part.trim();
+			if (!name.isEmpty()) {
+				ProfileManager.get().addProfile(name);
+				added++;
+			}
+		}
+		if (added > 0) {
+			this.nameField.setValue("");
+		}
 		rebuildList();
 	}
 
@@ -90,6 +117,7 @@ public class AltManagerScreen extends Screen {
 		this.clearWidgets();
 		this.addRenderableWidget(this.nameField);
 		this.addRenderableWidget(this.confirmButton);
+		this.addRenderableWidget(this.importButton);
 		this.addRenderableWidget(Button.builder(Component.literal("Volver"), button -> {
 					if (this.minecraft != null) {
 						this.minecraft.setScreen(this.parent);
