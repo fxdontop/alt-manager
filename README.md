@@ -1,7 +1,7 @@
 # Alt Manager
 
 Mod para Fabric (Minecraft 1.21.11) que añade un botón **"Alt Manager"** en el menú
-principal, junto a Singleplayer/Multiplayer. Al pulsarlo se abre una pantalla donde
+principal. Al pulsarlo se abre una pantalla donde
 puedes:
 
 - Añadir perfiles (con un nombre elegido por ti).
